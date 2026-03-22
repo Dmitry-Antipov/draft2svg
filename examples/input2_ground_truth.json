@@ -1,120 +1,53 @@
 {
   "nodes": [
-    {
-      "name": "A",
-      "x": 0.18,
-      "y": 0.28,
-      "shape": "circle"
-    },
-    {
-      "name": "B",
-      "x": 0.23,
-      "y": 0.38,
-      "shape": "circle"
-    },
-    {
-      "name": "C",
-      "x": 0.18,
-      "y": 0.52,
-      "shape": "circle"
-    },
-    {
-      "name": "D",
-      "x": 0.35,
-      "y": 0.4,
-      "shape": "circle"
-    },
-    {
-      "name": "E",
-      "x": 0.55,
-      "y": 0.6,
-      "shape": "circle"
-    },
-    {
-      "name": "F",
-      "x": 0.55,
-      "y": 0.4,
-      "shape": "circle"
-    },
-    {
-      "name": "G",
-      "x": 0.55,
-      "y": 0.22,
-      "shape": "circle"
-    }
+    {"name": "A", "x": 0.18, "y": 0.28, "shape": "circle"},
+    {"name": "B", "x": 0.25, "y": 0.38, "shape": "circle"},
+    {"name": "C", "x": 0.15, "y": 0.50, "shape": "circle"},
+    {"name": "D", "x": 0.40, "y": 0.38, "shape": "circle"},
+    {"name": "E", "x": 0.52, "y": 0.45, "shape": "circle"},
+    {"name": "F", "x": 0.52, "y": 0.32, "shape": "circle"},
+    {"name": "G", "x": 0.50, "y": 0.20, "shape": "circle"}
   ],
   "edges": [
     {
-      "source": "A",
-      "target": "B",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "A", "target": "B",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "C",
-      "target": "B",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "C", "target": "B",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "B",
-      "target": "D",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "B", "target": "D",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "D",
-      "target": "E",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "D", "target": "E",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "D",
-      "target": "F",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "D", "target": "F",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "F",
-      "target": "G",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "F", "target": "G",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     },
     {
-      "source": "G",
-      "target": "D",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.4
+      "source": "G", "target": "D",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.4
     },
     {
-      "source": "F",
-      "target": "E",
-      "label": null,
-      "weight": null,
-      "directed": true,
-      "color": null,
-      "curvature": 0.0
+      "source": "F", "target": "E",
+      "label": null, "weight": null,
+      "directed": true, "color": null, "curvature": 0.0
     }
   ],
   "title": null,

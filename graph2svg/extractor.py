@@ -93,10 +93,22 @@ before producing the final JSON.
 Scan the entire image for labeled circles, dots, or named intersection points.
 List each node with:
 - Its exact name (case-sensitive, as written)
-- Its approximate (x, y) position as a fraction of the graph's bounding box:
-  (0, 0) = top-left of the graph area, (1, 1) = bottom-right.
-  Estimate positions by looking at the node's location relative to the full
-  extent of the drawing (not the photo).
+- Its (x, y) position as a fraction of the IMAGE dimensions (not the graph
+  bounding box): (0, 0) = top-left corner of the image, (1, 1) = bottom-right
+  corner of the image.
+
+**Position accuracy is critical.** The rendered output will use these coordinates
+directly, so the distances between nodes must match what you see in the drawing.
+Follow this procedure:
+1. First, identify the pixel-level position of each node relative to the full
+   image (top-left = 0,0; bottom-right = 1,1).
+2. Nodes that are close together in the drawing MUST have coordinates that are
+   close together. If two nodes are 10% of the image apart, their coordinates
+   should differ by ~0.10 — do NOT spread them further apart.
+3. Verify your positions: compare the distance ratios between pairs of nodes in
+   your coordinate list with the visual distances in the image. For example, if
+   node A is twice as far from node C as it is from node B in the drawing, that
+   ratio must hold in your coordinates.
 
 Write: "Nodes found: [list them with positions]"
 
@@ -204,7 +216,7 @@ def _load_and_encode_image(image_path: str) -> tuple[str, str]:
     if max_dim > MAX_IMAGE_DIM:
         scale = MAX_IMAGE_DIM / max_dim
         new_size = (int(img.width * scale), int(img.height * scale))
-        img = img.resize(new_size, Image.LANCZOS)
+        img = img.resize(new_size, Image.Resampling.LANCZOS)
 
     # Encode as JPEG for efficiency
     buffer = io.BytesIO()
@@ -240,6 +252,16 @@ Perform these checks:
 6. NODE DEGREE: For each node, count how many lines touch it in the image.
    Compare this with the number of edges referencing that node in the JSON
    (as source or target). If they don't match, something is wrong.
+
+7. NODE POSITIONS: Verify that node coordinates accurately reflect the actual
+   positions in the image. Check:
+   - Nodes that are close together in the drawing should have coordinates that
+     are close together (not spread apart).
+   - Nodes that are roughly at the same height should have similar y values.
+   - Nodes that are roughly vertically aligned should have similar x values.
+   - The relative distances between node pairs should match the image.
+   Coordinates are fractions of the image dimensions (0,0 = top-left corner,
+   1,1 = bottom-right corner of the image).
 
 If the extraction is correct, output the same JSON unchanged.
 If there are errors, output a CORRECTED JSON with a brief comment before the
@@ -507,10 +529,12 @@ def extract_graph(
                                     "type": "text",
                                     "text": (
                                         "Analyze this hand-drawn graph carefully. "
-                                        "Follow the step-by-step process: first identify ALL nodes, "
-                                        "then systematically trace EVERY edge by examining each node's "
-                                        "connections. Pay special attention to dense/overlapping areas "
-                                        "where edges and labels may be hard to distinguish. "
+                                        "Follow the step-by-step process: first identify ALL nodes "
+                                        "with PRECISE positions (as fractions of the image dimensions — "
+                                        "nodes that are close together in the drawing must have close "
+                                        "coordinates), then systematically trace EVERY edge by examining "
+                                        "each node's connections. Pay special attention to dense/overlapping "
+                                        "areas where edges and labels may be hard to distinguish. "
                                         "Verify your edge count matches the number of edge labels "
                                         "visible in the image before outputting JSON."
                                     ),
@@ -611,7 +635,10 @@ def extract_graph(
                                 "Compare the extracted JSON against this image. "
                                 "Look for MISSED EDGES (most common error), wrong "
                                 "directions, swapped labels, or incorrect weights. "
-                                "Output the corrected JSON."
+                                "Also verify that node positions accurately reflect "
+                                "the image — nodes close together in the drawing must "
+                                "have close coordinates, and relative distances must "
+                                "be preserved. Output the corrected JSON."
                             ),
                         },
                         image_content,
