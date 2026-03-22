@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "name": "A",
+      "x": 0.18,
+      "y": 0.28,
+      "shape": "circle"
+    },
+    {
+      "name": "B",
+      "x": 0.23,
+      "y": 0.38,
+      "shape": "circle"
+    },
+    {
+      "name": "C",
+      "x": 0.18,
+      "y": 0.52,
+      "shape": "circle"
+    },
+    {
+      "name": "D",
+      "x": 0.35,
+      "y": 0.4,
+      "shape": "circle"
+    },
+    {
+      "name": "E",
+      "x": 0.55,
+      "y": 0.6,
+      "shape": "circle"
+    },
+    {
+      "name": "F",
+      "x": 0.55,
+      "y": 0.4,
+      "shape": "circle"
+    },
+    {
+      "name": "G",
+      "x": 0.55,
+      "y": 0.22,
+      "shape": "circle"
+    }
+  ],
+  "edges": [
+    {
+      "source": "A",
+      "target": "B",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "C",
+      "target": "B",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "B",
+      "target": "D",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "D",
+      "target": "E",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "D",
+      "target": "F",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "F",
+      "target": "G",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    },
+    {
+      "source": "G",
+      "target": "D",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.4
+    },
+    {
+      "source": "F",
+      "target": "E",
+      "label": null,
+      "weight": null,
+      "directed": true,
+      "color": null,
+      "curvature": 0.0
+    }
+  ],
+  "title": null,
+  "graph_type": "directed",
+  "weight_format": "plain"
+}

@@ -12,7 +12,9 @@ def normalize_positions(graph: GraphSpec, padding: float = 0.1) -> GraphSpec:
     """Normalize node positions to fill [padding, 1-padding] range.
 
     Ensures the graph uses the available space well while preserving
-    relative positions from the LLM extraction.
+    both relative positions and the aspect ratio from the LLM extraction.
+    The longer axis is scaled to fill the usable range; the shorter axis
+    is scaled by the same factor and centred.
     """
     if not graph.nodes:
         return graph
@@ -23,14 +25,28 @@ def normalize_positions(graph: GraphSpec, padding: float = 0.1) -> GraphSpec:
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(ys), max(ys)
 
-    x_range = x_max - x_min if x_max > x_min else 1.0
-    y_range = y_max - y_min if y_max > y_min else 1.0
+    x_range = x_max - x_min
+    y_range = y_max - y_min
 
     usable = 1.0 - 2 * padding
 
+    if x_range < 1e-12 and y_range < 1e-12:
+        # All nodes at the same point — centre them
+        for node in graph.nodes:
+            node.x = 0.5
+            node.y = 0.5
+        return graph
+
+    # Use a uniform scale so the aspect ratio is preserved.
+    scale = usable / max(x_range, y_range)
+
+    # Centre the shorter axis within the usable range.
+    x_offset = padding + (usable - x_range * scale) / 2
+    y_offset = padding + (usable - y_range * scale) / 2
+
     for node in graph.nodes:
-        node.x = padding + (node.x - x_min) / x_range * usable
-        node.y = padding + (node.y - y_min) / y_range * usable
+        node.x = x_offset + (node.x - x_min) * scale
+        node.y = y_offset + (node.y - y_min) * scale
 
     return graph
 
@@ -178,19 +194,29 @@ def _networkx_layout(
         pos = nx.spring_layout(G, seed=42)
 
     # NetworkX positions are in [-1, 1] range, normalize to [padding, 1-padding]
+    # using uniform scaling to preserve aspect ratio.
     xs = [p[0] for p in pos.values()]
     ys = [p[1] for p in pos.values()]
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(ys), max(ys)
-    x_range = x_max - x_min if x_max > x_min else 1.0
-    y_range = y_max - y_min if y_max > y_min else 1.0
+    x_range = x_max - x_min
+    y_range = y_max - y_min
 
     usable = 1.0 - 2 * padding
+
+    if x_range < 1e-12 and y_range < 1e-12:
+        scale = 1.0
+    else:
+        scale = usable / max(x_range, y_range)
+
+    x_offset = padding + (usable - x_range * scale) / 2
+    y_offset = padding + (usable - y_range * scale) / 2
+
     node_map = {n.name: n for n in graph.nodes}
     for name, (px, py) in pos.items():
         if name in node_map:
-            node_map[name].x = padding + (px - x_min) / x_range * usable
+            node_map[name].x = x_offset + (px - x_min) * scale
             # Flip y since networkx y increases upward but our y increases downward
-            node_map[name].y = padding + (1.0 - (py - y_min) / y_range) * usable
+            node_map[name].y = y_offset + (y_range - (py - y_min)) * scale
 
     return graph

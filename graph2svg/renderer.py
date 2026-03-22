@@ -170,21 +170,12 @@ def render_graph(
     plot_y_min = min(ys) - margin
     plot_y_max = max(ys) + margin
 
-    # Enforce a minimum aspect ratio so the output isn't overly tall.
-    # Wide/landscape output (≥ 1.6:1) looks best for most graphs.
-    MIN_ASPECT = 2.0
+    # Compute aspect ratio from the actual data bounds.  We no longer force a
+    # minimum landscape aspect ratio — the output should reflect the graph's
+    # natural shape so that square or tall graphs are rendered faithfully.
     data_width = plot_x_max - plot_x_min
     data_height = plot_y_max - plot_y_min
-    current_aspect = data_width / data_height if data_height > 0 else MIN_ASPECT
-    if current_aspect < MIN_ASPECT:
-        # Widen the x-range symmetrically to reach the desired aspect.
-        needed_width = data_height * MIN_ASPECT
-        extra = (needed_width - data_width) / 2
-        plot_x_min -= extra
-        plot_x_max += extra
-        data_width = needed_width
-
-    aspect = data_width / data_height if data_height > 0 else 1.6
+    aspect = data_width / data_height if data_height > 0 else 1.0
 
     fig_w = style.figure_width
     fig_h = fig_w / max(aspect, 0.3)

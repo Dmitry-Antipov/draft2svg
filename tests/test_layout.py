@@ -82,6 +82,51 @@ class TestNormalizePositions:
         assert min(ys) == pytest.approx(0.1)
         assert max(ys) == pytest.approx(0.9)
 
+    def test_preserves_aspect_ratio(self):
+        """Uniform scaling must preserve the original aspect ratio.
+
+        A 2:1 rectangle of nodes should remain 2:1 after normalization,
+        NOT be stretched to fill both axes independently.
+        """
+        graph = GraphSpec(
+            nodes=[
+                Node(name="A", x=0.0, y=0.0),
+                Node(name="B", x=2.0, y=0.0),
+                Node(name="C", x=2.0, y=1.0),
+                Node(name="D", x=0.0, y=1.0),
+            ],
+            edges=[],
+        )
+        result = normalize_positions(graph, padding=0.1)
+        xs = [n.x for n in result.nodes]
+        ys = [n.y for n in result.nodes]
+        x_span = max(xs) - min(xs)
+        y_span = max(ys) - min(ys)
+        # Original was 2:1.  With uniform scaling the longer axis (x) fills
+        # the usable range while y is half that.
+        assert x_span == pytest.approx(0.8)          # fills usable range
+        assert y_span == pytest.approx(0.4)           # half of x_span
+        assert x_span / y_span == pytest.approx(2.0)  # aspect preserved
+
+    def test_tall_graph_preserves_aspect(self):
+        """A 1:3 tall graph should stay 1:3 after normalization."""
+        graph = GraphSpec(
+            nodes=[
+                Node(name="A", x=0.0, y=0.0),
+                Node(name="B", x=1.0, y=3.0),
+            ],
+            edges=[],
+        )
+        result = normalize_positions(graph, padding=0.1)
+        xs = [n.x for n in result.nodes]
+        ys = [n.y for n in result.nodes]
+        x_span = max(xs) - min(xs)
+        y_span = max(ys) - min(ys)
+        # y is the longer axis (3.0) and fills 0.8; x = 1/3 of that
+        assert y_span == pytest.approx(0.8)
+        assert x_span == pytest.approx(0.8 / 3, abs=1e-6)
+        assert y_span / x_span == pytest.approx(3.0)
+
 
 # ---------------------------------------------------------------------------
 # assign_curvatures
