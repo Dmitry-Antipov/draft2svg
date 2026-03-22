@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {"name": "S", "x": 0.0, "y": 0.25, "shape": "circle"},
+    {"name": "A", "x": 0.22, "y": 0.25, "shape": "circle"},
+    {"name": "B", "x": 0.78, "y": 0.25, "shape": "circle"},
+    {"name": "T", "x": 1.0, "y": 0.25, "shape": "circle"},
+    {"name": "C", "x": 0.47, "y": 0.50, "shape": "circle"},
+    {"name": "D", "x": 0.50, "y": 0.75, "shape": "circle"}
+  ],
+  "edges": [
+    {"source": "S", "target": "A", "label": "e_1", "weight": "10", "directed": true, "color": null, "curvature": 0.0},
+    {"source": "A", "target": "B", "label": "e_5", "weight": "32", "directed": true, "color": null, "curvature": -0.35},
+    {"source": "B", "target": "T", "label": "e_2", "weight": "10", "directed": true, "color": null, "curvature": 0.0},
+    {"source": "C", "target": "A", "label": "e_6", "weight": "8", "directed": true, "color": null, "curvature": 0.3},
+    {"source": "B", "target": "C", "label": "e_4", "weight": "12", "directed": true, "color": null, "curvature": 0.1},
+    {"source": "B", "target": "D", "label": "e_3", "weight": "9", "directed": true, "color": null, "curvature": -0.35},
+    {"source": "C", "target": "D", "label": "e_9", "weight": "1", "directed": true, "color": null, "curvature": -0.1},
+    {"source": "D", "target": "A", "label": "e_8", "weight": "10", "directed": true, "color": null, "curvature": -0.5}
+  ],
+  "title": null,
+  "graph_type": "directed",
+  "weight_format": "multiply"
+}
