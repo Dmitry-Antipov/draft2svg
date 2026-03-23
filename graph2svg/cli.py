@@ -89,6 +89,13 @@ from .styles import PRESETS, get_style
     default=False,
     help="Bypass the LLM response cache (always call the API).",
 )
+@click.option(
+    "--pipeline",
+    type=click.Choice(["decomposed", "monolithic"]),
+    default="decomposed",
+    show_default=True,
+    help="Extraction pipeline: 'decomposed' (multi-pass, more accurate) or 'monolithic' (legacy single-pass).",
+)
 def main(
     input_path: str,
     output_path: str | None,
@@ -101,6 +108,7 @@ def main(
     verbose: bool,
     no_verify: bool,
     no_cache: bool,
+    pipeline: str,
 ) -> None:
     """Convert a hand-drawn graph image to publication-quality vector graphics.
 
@@ -137,6 +145,7 @@ def main(
             verbose=verbose,
             verify=not no_verify,
             use_cache=not no_cache,
+            pipeline=pipeline,
         )
 
     # Save JSON if requested
