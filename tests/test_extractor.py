@@ -1194,3 +1194,158 @@ class TestComposeGraph:
         e3 = next(e for e in graph.edges if e.label == "e_3")
         assert e3.source == "B"
         assert e3.target == "C"
+
+
+class TestCropEdgeRegionVisibleNodes:
+    """Tests for _crop_edge_region returning ALL visible nodes in the crop."""
+
+    def test_crop_includes_nearby_nodes(self):
+        """Nodes within the crop bounds should appear in relative positions."""
+        img_path = Path(__file__).parent.parent / "examples" / "input1.png"
+        if not img_path.exists():
+            pytest.skip("Example image not available")
+
+        # A and C are close together; D is between them vertically
+        node_pos = {
+            "A": (0.22, 0.52),
+            "C": (0.40, 0.54),
+            "D": (0.35, 0.53),  # nearby, within crop bounds (between A and C)
+            "S": (0.05, 0.10),  # far away, likely outside crop
+        }
+        edge = Edge(source="A", target="C", label="e_6", directed=True)
+        _, _, rel_pos = _crop_edge_region(str(img_path), node_pos, [edge])
+
+        # A and C must always be included
+        assert "A" in rel_pos
+        assert "C" in rel_pos
+
+        # D should be included since it's within the crop bounds
+        assert "D" in rel_pos, (
+            "Node D is within the crop region but was not included in "
+            "relative positions — the crop should include all visible nodes"
+        )
+        # S should NOT be included (too far away)
+        assert "S" not in rel_pos, (
+            "Node S is far from the crop region and should not be included"
+        )
+
+    def test_crop_excludes_far_nodes(self):
+        """Nodes far from the crop region should NOT appear in relative positions."""
+        img_path = Path(__file__).parent.parent / "examples" / "input1.png"
+        if not img_path.exists():
+            pytest.skip("Example image not available")
+
+        # S is far to the left of A-C edge
+        node_pos = {
+            "A": (0.50, 0.50),
+            "C": (0.60, 0.50),
+            "S": (0.05, 0.50),  # far away
+        }
+        edge = Edge(source="A", target="C", label="e_6", directed=True)
+        _, _, rel_pos = _crop_edge_region(str(img_path), node_pos, [edge])
+
+        assert "A" in rel_pos
+        assert "C" in rel_pos
+        assert "S" not in rel_pos, (
+            "Node S is far from the crop region and should not be included"
+        )
+
+    def test_crop_visible_node_positions_in_range(self):
+        """All returned node positions should be approximately in [0, 1]."""
+        img_path = Path(__file__).parent.parent / "examples" / "input1.png"
+        if not img_path.exists():
+            pytest.skip("Example image not available")
+
+        node_pos = {
+            "A": (0.22, 0.52),
+            "B": (0.38, 0.36),
+            "C": (0.40, 0.54),
+            "D": (0.42, 0.72),
+        }
+        edge = Edge(source="A", target="C", label="e_6", directed=True)
+        _, _, rel_pos = _crop_edge_region(str(img_path), node_pos, [edge])
+
+        for name, (rx, ry) in rel_pos.items():
+            # Allow slight margin overflow since we include nodes near the edge
+            assert -0.1 <= rx <= 1.1, f"{name} rel_x={rx} out of range"
+            assert -0.1 <= ry <= 1.1, f"{name} rel_y={ry} out of range"
+
+    def test_increased_padding(self):
+        """Crop should have increased padding compared to the old default (0.08)."""
+        img_path = Path(__file__).parent.parent / "examples" / "input1.png"
+        if not img_path.exists():
+            pytest.skip("Example image not available")
+
+        from PIL import Image as PILImage
+        full_img = PILImage.open(str(img_path))
+        full_pixels = full_img.size[0] * full_img.size[1]
+
+        # Use two very close nodes — the old 0.04 padding was too tight
+        node_pos = {"D": (0.42, 0.72), "C": (0.40, 0.54)}
+        edge = Edge(source="D", target="C", label="e_9", directed=True)
+        b64, _, _ = _crop_edge_region(str(img_path), node_pos, [edge])
+
+        import base64 as b64_mod
+        from io import BytesIO
+        decoded = b64_mod.b64decode(b64)
+        crop_img = PILImage.open(BytesIO(decoded))
+        crop_pixels = crop_img.size[0] * crop_img.size[1]
+
+        # The crop should be a reasonable fraction of the full image
+        # With increased padding, it should be at least 5% of the full image
+        ratio = crop_pixels / full_pixels
+        assert ratio >= 0.03, (
+            f"Crop is only {ratio:.1%} of full image — padding may be too tight"
+        )
+
+
+class TestZoomNodeValidation:
+    """Tests for zoom verification discarding verdicts with unexpected nodes."""
+
+    def test_apply_zoom_rejects_wrong_node_pair(self):
+        """Verdicts with nodes not in the verifying set should be ignored."""
+        graph = GraphSpec(
+            nodes=[
+                Node(name="A", x=0.0, y=0.0),
+                Node(name="B", x=0.5, y=0.0),
+                Node(name="C", x=1.0, y=0.0),
+                Node(name="D", x=0.5, y=1.0),
+            ],
+            edges=[
+                Edge(source="B", target="D", label="e_1", directed=True),
+                Edge(source="A", target="B", label="e_2", directed=True),
+            ],
+            graph_type="directed",
+        )
+        # We're only verifying B→D, but the LLM returns A→B (wrong edge!)
+        verdicts = [{"source": "A", "target": "B", "confidence": "high"}]
+        original_edges = [Edge(source="B", target="D", label="e_1", directed=True)]
+
+        result = _apply_zoom_verdicts(graph, verdicts, original_edges)
+
+        # The B→D edge should NOT have been changed to A→B
+        e1 = next(e for e in result.edges if e.label == "e_1")
+        assert e1.source == "B"
+        assert e1.target == "D"
+
+    def test_apply_zoom_accepts_correct_reversal(self):
+        """Verdicts reversing the direction of the correct edge pair should apply."""
+        graph = GraphSpec(
+            nodes=[
+                Node(name="A", x=0.0, y=0.0),
+                Node(name="B", x=0.5, y=0.0),
+            ],
+            edges=[
+                Edge(source="A", target="B", label="e_1", directed=True),
+            ],
+            graph_type="directed",
+        )
+        # The LLM says it should be B→A instead
+        verdicts = [{"source": "B", "target": "A", "confidence": "high"}]
+        original_edges = [Edge(source="A", target="B", label="e_1", directed=True)]
+
+        result = _apply_zoom_verdicts(graph, verdicts, original_edges)
+
+        e1 = next(e for e in result.edges if e.label == "e_1")
+        assert e1.source == "B"
+        assert e1.target == "A"

@@ -1692,6 +1692,14 @@ def _extract_directions_with_zoom(
     """
     node_positions = {n.name: (n.x, n.y) for n in nodes}
 
+    # Build a topology trace lookup: (node_a, node_b) -> trace description
+    topo_traces: dict[tuple[str, str], str] = {}
+    topo_labels: dict[tuple[str, str], str | None] = {}
+    for t in topology:
+        pair = (min(t["node_a"], t["node_b"]), max(t["node_a"], t["node_b"]))
+        topo_traces[pair] = t.get("trace", "")
+        topo_labels[pair] = t.get("label")
+
     # Build a temporary GraphSpec to use _find_dense_edges
     temp_edges = []
     for d in directions:
@@ -1744,10 +1752,52 @@ def _extract_directions_with_zoom(
 
         src_pos = rel_positions.get(src, (0.5, 0.5))
         tgt_pos = rel_positions.get(tgt, (0.5, 0.5))
+
+        # Build label description for the prompt
+        if label:
+            label_desc = f"labeled **{label}** "
+            label_hint = (
+                f"Look for the label \"{label}\" near the line — the line with "
+                f"that label is the one you need to examine."
+            )
+        else:
+            label_desc = ""
+            label_hint = ""
+
+        # Build trace description from Pass B topology
+        pair = (min(src, tgt), max(src, tgt))
+        trace = topo_traces.get(pair, "")
+        if trace:
+            trace_desc = (
+                f"\nPath description from topology analysis: \"{trace}\"\n"
+                f"Use this description to help identify which physical line "
+                f"in the image is this edge."
+            )
+        else:
+            trace_desc = ""
+
+        # Build description of other visible nodes in the crop
+        other_nodes = []
+        for name, (rx, ry) in sorted(rel_positions.items()):
+            if name != src and name != tgt:
+                other_nodes.append(f"  {name} is also visible at ({rx:.0%}, {ry:.0%})")
+        if other_nodes:
+            other_nodes_desc = (
+                "\nOther nodes visible in this crop (for reference — "
+                "do NOT examine edges to these nodes):\n"
+                + "\n".join(other_nodes)
+            )
+        else:
+            other_nodes_desc = ""
+
         zoom_prompt = ZOOM_VERIFY_PROMPT.format(
             source=src, target=tgt,
             src_x=src_pos[0], src_y=src_pos[1],
             tgt_x=tgt_pos[0], tgt_y=tgt_pos[1],
+            label_desc=label_desc,
+            label_hint=label_hint,
+            trace_desc=trace_desc,
+            other_nodes_desc=other_nodes_desc,
         )
 
         # Cache key per edge
@@ -1776,8 +1826,10 @@ def _extract_directions_with_zoom(
                         {"role": "user", "content": [
                             {"type": "text", "text": (
                                 f"This is a ZOOMED-IN crop showing the region around "
-                                f"the edge between {src} and {tgt}. "
-                                f"Which end has the arrowhead?"
+                                f"the edge {label_desc}between {src} and {tgt}. "
+                                f"Identify the correct line connecting these two "
+                                f"specific nodes and determine which end has the "
+                                f"arrowhead."
                             )},
                             crop_content,
                         ]},
@@ -1797,6 +1849,19 @@ def _extract_directions_with_zoom(
         if verdict and verdict.get("confidence") != "low":
             new_src = verdict.get("source", src)
             new_tgt = verdict.get("target", tgt)
+            # Validate: the zoom should only return the two nodes of THIS edge.
+            # If it returns a node that isn't src or tgt, it saw the wrong edge
+            # — discard the verdict.
+            expected_nodes = {src, tgt}
+            if new_src not in expected_nodes or new_tgt not in expected_nodes:
+                if verbose:
+                    print(
+                        f"    Zoom returned unexpected nodes ({new_src}→{new_tgt}), "
+                        f"discarding — likely saw a different edge.",
+                        file=sys.stderr,
+                    )
+                continue
+
             if new_src != src or new_tgt != tgt:
                 if verbose:
                     print(
@@ -2126,25 +2191,40 @@ DENSE_MIN_NEARBY_NODES = 3
 
 ZOOM_VERIFY_PROMPT = """\
 You are verifying the direction of a SINGLE arrow in a zoomed-in crop of a
-hand-drawn graph diagram. The image below shows a CLOSE-UP of the region
-around the edge between node {source} and node {target}.
+hand-drawn graph diagram.
 
-Your ONLY job is to determine the direction of the arrow connecting {source}
-and {target}.
+## The edge to examine
 
-How to identify direction:
+You are looking at the edge {label_desc}connecting node **{source}** and
+node **{target}**.
+{trace_desc}
+
+## Node positions in this crop
+
+{source} is at approximately ({src_x:.0%}, {src_y:.0%}) in this crop.
+{target} is at approximately ({tgt_x:.0%}, {tgt_y:.0%}) in this crop.
+{other_nodes_desc}
+
+## How to identify direction
+
 - One end of the line has an arrowhead — a pointed tip shaped like >, V, <,
   or a small triangle. That end is the TARGET (where the arrow points TO).
 - The other end is a plain line meeting a node circle. That is the SOURCE
   (where the arrow comes FROM).
 
-{source} is located at approximately ({src_x:.0%}, {src_y:.0%}) in this crop.
-{target} is located at approximately ({tgt_x:.0%}, {tgt_y:.0%}) in this crop.
+## CRITICAL: Identify the CORRECT line
 
-IMPORTANT:
-- Look VERY carefully at both ends of the line connecting {source} and {target}.
-- Ignore other edges and labels — only focus on the line between {source} and
-  {target}.
+This crop may contain OTHER edges besides the one you are examining.
+To find the RIGHT line:
+1. Locate node {source} at ({src_x:.0%}, {src_y:.0%}) and node {target} at
+   ({tgt_x:.0%}, {tgt_y:.0%}).
+2. Find the line that PHYSICALLY CONNECTS these two specific nodes.
+   {label_hint}
+3. IGNORE any other lines passing through this region that connect to
+   different nodes — they are NOT the edge you're examining.
+4. Once you've identified the correct line, examine BOTH endpoints to
+   determine which end has the arrowhead.
+
 - If a weight (number) is written alongside this specific edge, report it.
 - If you cannot clearly see an arrowhead on either end, say confidence "low".
 
@@ -2222,7 +2302,7 @@ def _crop_edge_region(
     image_path: str,
     node_positions: dict[str, tuple[float, float]],
     edges: list[Edge],
-    padding_frac: float = 0.08,
+    padding_frac: float = 0.12,
 ) -> tuple[str, str, dict[str, tuple[float, float]]]:
     """Crop the original image around a set of edges and their nodes.
 
@@ -2230,8 +2310,8 @@ def _crop_edge_region(
     Uses generous padding around the nodes but keeps the crop tight.
 
     Returns (base64_data, media_type, relative_node_positions) where
-    relative_node_positions maps node names to (x, y) in the cropped image
-    coordinate system (0-1 fractions).
+    relative_node_positions maps ALL node names visible in the crop to (x, y)
+    in the cropped image coordinate system (0-1 fractions).
     """
     img = Image.open(image_path)
     if img.mode not in ("RGB", "L"):
@@ -2257,9 +2337,10 @@ def _crop_edge_region(
     # Compute padding: ensure we see enough context around the edge
     span_x = max(xs) - min(xs)
     span_y = max(ys) - min(ys)
-    # Padding should be proportional to the edge length, with a floor
-    pad_x = max(padding_frac * max(span_x, 0.05) + 0.03, 0.04)
-    pad_y = max(padding_frac * max(span_y, 0.05) + 0.03, 0.04)
+    # Padding should be proportional to the edge length, with a generous floor
+    # to prevent crops that are too tight and miss context
+    pad_x = max(padding_frac * max(span_x, 0.08) + 0.04, 0.06)
+    pad_y = max(padding_frac * max(span_y, 0.08) + 0.04, 0.06)
 
     x_min = max(0, min(xs) - pad_x)
     x_max = min(1.0, max(xs) + pad_x)
@@ -2282,16 +2363,20 @@ def _crop_edge_region(
         new_size = (int(cw * scale), int(ch * scale))
         cropped = cropped.resize(new_size, Image.Resampling.LANCZOS)
 
-    # Compute relative node positions in the cropped image
+    # Compute relative node positions for ALL nodes in the crop bounds
+    # (not just the edge's endpoints — this helps the LLM identify which
+    # nodes are visible and avoid confusing nearby edges)
     crop_w = x_max - x_min
     crop_h = y_max - y_min
     relative_positions: dict[str, tuple[float, float]] = {}
-    for n in involved_nodes:
-        if n in node_positions:
-            nx, ny = node_positions[n]
+    for name, (nx, ny) in node_positions.items():
+        # Include any node that falls within the crop bounds (with small margin)
+        margin = 0.02
+        if (x_min - margin <= nx <= x_max + margin and
+                y_min - margin <= ny <= y_max + margin):
             rel_x = (nx - x_min) / crop_w if crop_w > 0 else 0.5
             rel_y = (ny - y_min) / crop_h if crop_h > 0 else 0.5
-            relative_positions[n] = (rel_x, rel_y)
+            relative_positions[name] = (rel_x, rel_y)
 
     # Encode as JPEG
     buf = io.BytesIO()
@@ -2811,6 +2896,32 @@ def extract_graph(
             # Build a per-edge prompt with the node positions filled in
             src_pos = rel_positions.get(edge.source, (0.5, 0.5))
             tgt_pos = rel_positions.get(edge.target, (0.5, 0.5))
+
+            # Build label and trace info for the prompt
+            if edge.label:
+                label_desc = f"labeled **{edge.label}** "
+                label_hint = (
+                    f"Look for the label \"{edge.label}\" near the line — the line with "
+                    f"that label is the one you need to examine."
+                )
+            else:
+                label_desc = ""
+                label_hint = ""
+
+            # Build description of other visible nodes in the crop
+            other_nodes = []
+            for name, (rx, ry) in sorted(rel_positions.items()):
+                if name != edge.source and name != edge.target:
+                    other_nodes.append(f"  {name} is also visible at ({rx:.0%}, {ry:.0%})")
+            if other_nodes:
+                other_nodes_desc = (
+                    "\nOther nodes visible in this crop (for reference — "
+                    "do NOT examine edges to these nodes):\n"
+                    + "\n".join(other_nodes)
+                )
+            else:
+                other_nodes_desc = ""
+
             system_prompt_filled = ZOOM_VERIFY_PROMPT.format(
                 source=edge.source,
                 target=edge.target,
@@ -2818,6 +2929,10 @@ def extract_graph(
                 src_y=src_pos[1],
                 tgt_x=tgt_pos[0],
                 tgt_y=tgt_pos[1],
+                label_desc=label_desc,
+                label_hint=label_hint,
+                trace_desc="",
+                other_nodes_desc=other_nodes_desc,
             )
 
             # Cache key per edge
@@ -2862,10 +2977,12 @@ def extract_graph(
                                         "type": "text",
                                         "text": (
                                             "This is a ZOOMED-IN crop showing the "
-                                            "region around the edge between "
-                                            f"{edge.source} and {edge.target}. "
-                                            "Please verify the arrow direction. "
-                                            "Which end has the arrowhead?"
+                                            "region around the edge "
+                                            f"{'labeled ' + edge.label + ' ' if edge.label else ''}"
+                                            f"between {edge.source} and {edge.target}. "
+                                            "Identify the correct line connecting "
+                                            "these two specific nodes and determine "
+                                            "which end has the arrowhead."
                                         ),
                                     },
                                     crop_content,
